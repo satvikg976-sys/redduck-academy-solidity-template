@@ -230,4 +230,95 @@ describe("Pair additional tests", function () {
     );
   });
 
+  it("supports swaps in the reverse direction (token B to token A)", async function () {
+    const { pair, tokenB, alice } = await deployFixture();
+
+    await pair.write.addLiquidity([
+      parseEther("1000"),
+      parseEther("1000"),
+    ]);
+
+    const reserve0Before = await pair.read.reserve0();
+    const reserve1Before = await pair.read.reserve1();
+    const kBefore = reserve0Before * reserve1Before;
+    const amountIn = parseEther("100");
+
+    const expectedOut = await pair.read.getAmountOut([
+      amountIn,
+      reserve1Before,
+      reserve0Before,
+    ]);
+
+    await pair.write.swap(
+      [tokenB.address, amountIn, expectedOut],
+      { account: alice.account },
+    );
+
+    assert.equal(
+      await pair.read.reserve1(),
+      reserve1Before + amountIn,
+    );
+    const reserve0After = await pair.read.reserve0();
+const reserve1After = await pair.read.reserve1();
+
+assert.ok(
+  reserve0After * reserve1After >= kBefore,
+  "k must not decrease in reverse swaps",
+);
+
+    assert.equal(
+      await pair.read.reserve0(),
+      reserve0Before - expectedOut,
+    );
+  });
+
+  it("keeps reserves synchronized with actual token balances after swaps", async function () {
+    const { pair, tokenA, tokenB, alice } = await deployFixture();
+
+    await pair.write.addLiquidity([
+      parseEther("1000"),
+      parseEther("1000"),
+    ]);
+
+    await pair.write.swap(
+      [tokenA.address, parseEther("50"), 0n],
+      { account: alice.account },
+    );
+
+    const balance0 = await tokenA.read.balanceOf([pair.address]);
+    const balance1 = await tokenB.read.balanceOf([pair.address]);
+
+    assert.equal(await pair.read.reserve0(), balance0);
+    assert.equal(await pair.read.reserve1(), balance1);
+  });
+
+  it("keeps reserves synchronized after liquidity removal", async function () {
+    const { pair, tokenA, tokenB, alice } = await deployFixture();
+
+    await pair.write.addLiquidity([
+      parseEther("1000"),
+      parseEther("1000"),
+    ]);
+
+    await pair.write.addLiquidity(
+      [parseEther("100"), parseEther("100")],
+      { account: alice.account },
+    );
+
+    const liquidity = await pair.read.balanceOf([
+      alice.account.address,
+    ]);
+
+    await pair.write.removeLiquidity(
+      [liquidity],
+      { account: alice.account },
+    );
+
+    const balance0 = await tokenA.read.balanceOf([pair.address]);
+    const balance1 = await tokenB.read.balanceOf([pair.address]);
+
+    assert.equal(await pair.read.reserve0(), balance0);
+    assert.equal(await pair.read.reserve1(), balance1);
+  });
+
 });
