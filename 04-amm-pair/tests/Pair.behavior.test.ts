@@ -450,4 +450,33 @@ describe("Pair (liquidity and edge cases)", function () {
       "k must not decrease across a reverse swap",
     );
   });
+
+it("decreases total LP supply when liquidity is removed", async function () {
+  const { pair, alice } = await deployFixture();
+
+  await pair.write.addLiquidity([
+    parseEther("1000"),
+    parseEther("1000"),
+  ]);
+
+  await pair.write.addLiquidity(
+    [parseEther("500"), parseEther("500")],
+    { account: alice.account },
+  );
+
+  const totalSupplyBefore = await pair.read.totalSupply();
+
+  await pair.write.removeLiquidity([parseEther("250")], {
+    account: alice.account,
+  });
+
+  const totalSupplyAfter = await pair.read.totalSupply();
+
+  assert.equal(
+    totalSupplyAfter,
+    totalSupplyBefore - parseEther("250"),
+    "Total LP supply should decrease after liquidity removal",
+  );
+});
+
 });
